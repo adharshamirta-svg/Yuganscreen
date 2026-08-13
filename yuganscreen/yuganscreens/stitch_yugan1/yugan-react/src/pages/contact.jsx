@@ -13,7 +13,7 @@ export default function Contact() {
     const formData = new FormData(event.target);
     const formProps = Object.fromEntries(formData);
 
-    const endpoint = import.meta.env.VITE_WEBSITE_URL || 'http://localhost:5000/api/contact';
+    const endpoint = `${import.meta.env.VITE_API_BASE_URL}/api/contact`;
 
     try {
       const response = await fetch(endpoint, {

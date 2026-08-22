@@ -9,6 +9,7 @@ import Contact from './pages/contact'
 import AboutUs from './pages/AboutUs'
 
 import WhatsAppButton from './components/whatsapp'
+import Chatbot from './components/chatbot'
 
 import './index.css'
 
@@ -18,10 +19,8 @@ function App() {
 
       <div className="bg-background text-on-background font-body-md overflow-x-hidden min-h-screen">
 
-        {/* Navigation */}
         <TopNav />
 
-        {/* Page Content */}
         <div className="pt-[88px]">
 
           <Routes>
@@ -40,11 +39,11 @@ function App() {
 
         </div>
 
-        {/* Footer */}
         <Footer />
 
-        {/* WhatsApp Floating Button */}
         <WhatsAppButton />
+
+        <Chatbot />
 
       </div>
 

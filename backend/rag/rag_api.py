@@ -3,17 +3,25 @@ from flask_cors import CORS
 
 from chatbot import ask_chatbot
 
+
 app = Flask(__name__)
 
-# Allow your React frontend to communicate with this API
 CORS(app)
 
 
-@app.route("/", methods=["GET"])
+@app.route("/")
 def home():
     return jsonify({
         "success": True,
         "message": "Yugan Screens RAG API is running!"
+    })
+
+
+@app.route("/health")
+def health():
+    return jsonify({
+        "success": True,
+        "status": "healthy"
     })
 
 
@@ -22,24 +30,21 @@ def chat():
 
     try:
 
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
 
-        if not data or "message" not in data:
+        question = data.get("message", "").strip()
+
+        if not question:
             return jsonify({
                 "success": False,
-                "message": "Please provide a message."
+                "message": "Please enter a message."
             }), 400
 
-        user_message = data["message"].strip()
+        print(f"User question: {question}")
 
-        if not user_message:
-            return jsonify({
-                "success": False,
-                "message": "Message cannot be empty."
-            }), 400
+        answer = ask_chatbot(question)
 
-        # Send question to your existing RAG chatbot
-        answer = ask_chatbot(user_message)
+        print(f"Bot answer: {answer}")
 
         return jsonify({
             "success": True,
@@ -48,21 +53,9 @@ def chat():
 
     except Exception as error:
 
-        print("Chatbot error:", error)
+        print(f"Chat error: {error}")
 
         return jsonify({
             "success": False,
-            "message": "Sorry, I couldn't process your request."
+            "message": "Sorry, something went wrong."
         }), 500
-
-
-if __name__ == "__main__":
-
-    print("🤖 Yugan Screens RAG API starting...")
-    print("📡 API available at http://localhost:8000")
-
-    app.run(
-        host="0.0.0.0",
-        port=8000,
-        debug=True
-    )

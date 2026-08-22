@@ -1,56 +1,36 @@
-import os
 from pathlib import Path
-
 import chromadb
 from sentence_transformers import SentenceTransformer
 
-RAG_PATH = Path(__file__).resolve().parent
-DOCUMENTS_PATH = RAG_PATH / "documents"
-DB_PATH = RAG_PATH.parent / "data" / "chroma"
+DB_PATH = Path(__file__).resolve().parent.parent / "data" / "chroma"
 
-# Load embedding model
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
-# Create Chroma database
-client = chromadb.PersistentClient(path=DB_PATH)
+client = chromadb.PersistentClient(path=str(DB_PATH))
 
 collection = client.get_or_create_collection(
     name="yugan_screens"
 )
 
-# Read documents
-for filename in os.listdir(DOCUMENTS_PATH):
+documents = [
+    "Q: Can the screens be customized?\nA: Yes, screen solutions can be customized according to the customer's requirements and measurements.",
 
-    filepath = os.path.join(DOCUMENTS_PATH, filename)
+    "Q: What products does Yugan Screens provide?\nA: Yugan Screens provides mosquito mesh window screens, pleated mesh doors and balcony invisible grills.",
 
-    if not filename.endswith(".txt"):
-        continue
+    "Q: Do you provide installation?\nA: Yes, Yugan Screens provides screen installation services.",
 
-    with open(filepath, "r", encoding="utf-8") as file:
-        text = file.read()
+    "Q: How can I get a quotation?\nA: Customers can use the Get Free Quote option or contact Yugan Screens through WhatsApp.",
 
-    # Split into smaller chunks
-    chunks = [
-        chunk.strip()
-        for chunk in text.split("\n\n")
-        if chunk.strip()
-    ]
+    "Q: Where is Yugan Screens located?\nA: Yugan Screens serves customers in Chennai and surrounding areas."
+]
 
-    for index, chunk in enumerate(chunks):
+embeddings = model.encode(documents).tolist()
 
-        embedding = model.encode(chunk).tolist()
+collection.add(
+    ids=[f"doc_{i}" for i in range(len(documents))],
+    documents=documents,
+    embeddings=embeddings
+)
 
-        document_id = f"{filename}_{index}"
-
-        collection.upsert(
-            ids=[document_id],
-            documents=[chunk],
-            embeddings=[embedding],
-            metadatas=[{
-                "source": filename
-            }]
-        )
-
-        print(f"Added: {document_id}")
-
-print("Knowledge base created successfully.")
+print("✅ Yugan Screens knowledge base created!")
+print("Documents:", collection.count())

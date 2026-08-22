@@ -8,7 +8,7 @@ import Gallery from './pages/Gallery'
 import Contact from './pages/contact'
 import AboutUs from './pages/AboutUs'
 
-import WhatsAppButton from './components/WhatsAppButton'
+import WhatsAppButton from './components/whatsapp'
 
 import './index.css'
 

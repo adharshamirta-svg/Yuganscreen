@@ -1,9 +1,16 @@
 const express = require('express');
 const cors = require('cors');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
-
 const app = express();
 const PORT = process.env.PORT || 5000;
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
 
 // Enable CORS so your Vite frontend (http://localhost:5173) can talk to this server
 app.use(cors({
@@ -52,7 +59,71 @@ app.get('/api/products', (req, res) => {
 });
 
 // POST /api/contact (Handles contact form submission from contact.jsx)
-app.post('/api/contact', (req, res) => {
+app.post('/api/contact', async (req, res) => {
+    const {
+        name,
+        phone,
+        email,
+        location,
+        service,
+        message
+    } = req.body;
+
+    if (!name || !phone || !email || !location || !message) {
+        return res.status(400).json({
+            success: false,
+            message: 'Please fill in all required fields.'
+        });
+    }
+
+    try {
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: process.env.EMAIL_USER,
+            replyTo: email,
+            subject: `New Yugan Screens Enquiry - ${name}`,
+
+            text: `
+New Contact Form Submission
+
+Name: ${name}
+Phone: ${phone}
+Email: ${email}
+Location: ${location}
+Service: ${service || 'General Enquiry'}
+
+Message:
+${message}
+
+Received: ${new Date().toISOString()}
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        console.log('📬 Email sent successfully:', {
+            name,
+            phone,
+            email,
+            location,
+            service,
+            message
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: 'Your request has been received. We will contact you shortly!'
+        });
+
+    } catch (error) {
+        console.error('❌ Email sending failed:', error);
+
+        return res.status(500).json({
+            success: false,
+            message: 'Could not send your message. Please try again later.'
+        });
+    }
+});
   const { name, phone, email, location, service, message } = req.body;
 
   if (!name || !phone || !email || !location || !message) {
@@ -76,7 +147,7 @@ app.post('/api/contact', (req, res) => {
     success: true,
     message: 'Your request has been received. We will contact you shortly!'
   });
-});
+;
 // Add this route in server.js before app.listen(...)
 app.get('/', (req, res) => {
   res.send('🚀 Yugan Screens API is running live!');

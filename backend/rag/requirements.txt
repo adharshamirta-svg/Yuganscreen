@@ -1,7 +1,6 @@
 flask
 flask-cors
-chromadb==1.5.9
-sentence-transformers
-requests
+chromadb
+google-genai
+python-dotenv
 gunicorn
-openai

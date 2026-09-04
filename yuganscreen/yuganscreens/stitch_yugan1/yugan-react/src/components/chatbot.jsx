@@ -40,7 +40,7 @@ function Chatbot() {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:5000/chat", {
+      const response = fetch(`${import.meta.env.VITE_RAG_API_URL}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

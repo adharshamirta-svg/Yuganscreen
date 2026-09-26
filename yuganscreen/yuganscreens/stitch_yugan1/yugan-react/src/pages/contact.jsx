@@ -1,5 +1,4 @@
 import { useState } from "react";
-import Reveal from "./Reveal";
 
 export default function Contact() {
   const [loading, setLoading] = useState(false);
@@ -79,8 +78,7 @@ export default function Contact() {
       </section>
 
       {/* ================= MAIN FULL-WIDTH CONTACT CONTAINER ================= */}
-      <Reveal>
-<section className="w-full py-12 md:py-16 px-4 md:px-8 lg:px-12">
+      <section className="w-full py-12 md:py-16 px-4 md:px-8 lg:px-12">
         <div className="w-full bg-white rounded-[32px] shadow-2xl overflow-hidden border border-slate-100">
 
           <div className="grid grid-cols-1 lg:grid-cols-12 w-full">
@@ -270,7 +268,6 @@ export default function Contact() {
           </div>
         </div>
       </section>
-</Reveal>
 
     </main>
   );

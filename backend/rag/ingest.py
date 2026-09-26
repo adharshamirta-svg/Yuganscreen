@@ -1,5 +1,18 @@
+"""
+Hybrid RAG Ingestion Pipeline for Yugan Screens
+=================================================
+
+Reads all .txt files from the documents/ folder,
+splits them into smart overlapping chunks, generates
+Gemini embeddings, and stores everything in ChromaDB.
+
+Re-run this script whenever you update the knowledge base.
+"""
+
 from pathlib import Path
 import os
+import re
+import time
 
 import chromadb
 from google import genai
@@ -7,66 +20,209 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ─── Paths ───────────────────────────────────────
+
+DOCS_DIR = Path(__file__).resolve().parent / "documents"
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "chroma"
 
-# Gemini client
+# ─── Gemini client ───────────────────────────────
+
 gemini_client = genai.Client(
     api_key=os.getenv("GEMINI_API_KEY")
 )
 
 EMBEDDING_MODEL = "gemini-embedding-001"
 
-# ChromaDB
+# ─── ChromaDB ────────────────────────────────────
+
 client = chromadb.PersistentClient(
     path=str(DB_PATH)
 )
 
-# Remove old collection because it used
-# all-MiniLM-L6-v2 embeddings
+# Remove old collection for a clean rebuild
 try:
     client.delete_collection(name="yugan_screens")
-    print("🗑️ Old ChromaDB collection deleted.")
+    print("🗑️  Old collection deleted.")
 except Exception:
-    print("ℹ️ No old collection found.")
+    print("ℹ️  No old collection to delete.")
 
 collection = client.get_or_create_collection(
     name="yugan_screens"
 )
 
-documents = [
-    "Q: Can the screens be customized?\nA: Yes, screen solutions can be customized according to the customer's requirements and measurements.",
 
-    "Q: What products does Yugan Screens provide?\nA: Yugan Screens provides mosquito mesh window screens, pleated mesh doors and balcony invisible grills.",
+# ─── Chunking helpers ────────────────────────────
 
-    "Q: Do you provide installation?\nA: Yes, Yugan Screens provides screen installation services.",
+def read_all_documents():
+    """Read every .txt file in the documents/ folder."""
 
-    "Q: How can I get a quotation?\nA: Customers can use the Get Free Quote option or contact Yugan Screens through WhatsApp.",
+    documents = []
 
-    "Q: Where is Yugan Screens located?\nA: Yugan Screens serves customers in Chennai and surrounding areas."
-]
+    for txt_file in sorted(DOCS_DIR.glob("*.txt")):
 
-print("🔄 Creating Gemini embeddings...")
+        content = txt_file.read_text(encoding="utf-8").strip()
 
-embeddings = []
+        if content:
+            documents.append({
+                "filename": txt_file.name,
+                "content": content
+            })
 
-for i, document in enumerate(documents):
+            print(f"  📄 {txt_file.name} ({len(content)} chars)")
 
-    print(f"Embedding document {i + 1}/{len(documents)}...")
+    return documents
 
-    result = gemini_client.models.embed_content(
-        model=EMBEDDING_MODEL,
-        contents=document
+
+def chunk_qa_document(text, filename):
+    """Split Q&A-formatted documents into individual Q/A pairs."""
+
+    chunks = []
+
+    # Split on lines starting with "Q:"
+    qa_blocks = re.split(r"\n(?=Q:)", text)
+
+    for block in qa_blocks:
+        block = block.strip()
+
+        if block and len(block) > 20:
+            chunks.append({
+                "text": block,
+                "source": filename,
+                "type": "qa"
+            })
+
+    return chunks
+
+
+def chunk_structured_document(text, filename):
+    """
+    Split product/service docs into sections.
+    Splits on double newlines or numbered headers.
+    """
+
+    chunks = []
+
+    # Try splitting on double-newline separated blocks
+    sections = re.split(r"\n\n+", text)
+
+    current_chunk = ""
+
+    for section in sections:
+        section = section.strip()
+
+        if not section:
+            continue
+
+        # If adding this section stays under 500 chars, merge
+        if len(current_chunk) + len(section) < 500:
+            current_chunk += "\n\n" + section if current_chunk else section
+        else:
+            if current_chunk and len(current_chunk) > 30:
+                chunks.append({
+                    "text": current_chunk,
+                    "source": filename,
+                    "type": "info"
+                })
+            current_chunk = section
+
+    # Don't forget the last chunk
+    if current_chunk and len(current_chunk) > 30:
+        chunks.append({
+            "text": current_chunk,
+            "source": filename,
+            "type": "info"
+        })
+
+    return chunks
+
+
+def chunk_documents(raw_documents):
+    """Smart chunking based on document type."""
+
+    all_chunks = []
+
+    for doc in raw_documents:
+
+        filename = doc["filename"]
+        content = doc["content"]
+
+        if "FAQ" in filename.upper():
+            chunks = chunk_qa_document(content, filename)
+        else:
+            chunks = chunk_structured_document(content, filename)
+
+        all_chunks.extend(chunks)
+        print(f"  🔪 {filename} → {len(chunks)} chunks")
+
+    return all_chunks
+
+
+# ─── Embedding + Storage ────────────────────────
+
+def embed_and_store(chunks):
+    """Generate Gemini embeddings and store in ChromaDB."""
+
+    ids = []
+    documents = []
+    embeddings = []
+    metadatas = []
+
+    total = len(chunks)
+
+    for i, chunk in enumerate(chunks):
+
+        print(
+            f"  ⚡ Embedding chunk {i + 1}/{total} "
+            f"({chunk['source']})..."
+        )
+
+        result = gemini_client.models.embed_content(
+            model=EMBEDDING_MODEL,
+            contents=chunk["text"]
+        )
+
+        ids.append(f"chunk_{i}")
+        documents.append(chunk["text"])
+        embeddings.append(result.embeddings[0].values)
+        metadatas.append({
+            "source": chunk["source"],
+            "type": chunk["type"]
+        })
+
+        # Small delay to avoid rate limits
+        if (i + 1) % 10 == 0:
+            time.sleep(0.5)
+
+    collection.add(
+        ids=ids,
+        documents=documents,
+        embeddings=embeddings,
+        metadatas=metadatas
     )
 
-    embeddings.append(
-        result.embeddings[0].values
-    )
+    return len(ids)
 
-collection.add(
-    ids=[f"doc_{i}" for i in range(len(documents))],
-    documents=documents,
-    embeddings=embeddings
-)
 
-print("✅ Yugan Screens knowledge base created!")
-print("📚 Documents:", collection.count())
+# ─── Main ────────────────────────────────────────
+
+if __name__ == "__main__":
+
+    print("\n🚀 Yugan Screens — Hybrid RAG Ingestion")
+    print("=" * 45)
+
+    print("\n📂 Reading documents...")
+    raw_docs = read_all_documents()
+
+    if not raw_docs:
+        print("❌ No .txt files found in documents/")
+        exit(1)
+
+    print(f"\n🔪 Chunking {len(raw_docs)} documents...")
+    chunks = chunk_documents(raw_docs)
+
+    print(f"\n⚡ Embedding {len(chunks)} chunks with Gemini...")
+    count = embed_and_store(chunks)
+
+    print(f"\n✅ Knowledge base ready!")
+    print(f"📚 Total chunks stored: {count}")
+    print(f"💾 Database path: {DB_PATH}")

@@ -12,6 +12,12 @@ function Chatbot() {
 
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState([
+    "What products do you offer?",
+    "What are the prices?",
+    "Do you provide installation?",
+  ]);
+  const [showSuggestions, setShowSuggestions] = useState(true);
 
   const messagesEndRef = useRef(null);
 
@@ -22,10 +28,24 @@ function Chatbot() {
     });
   }, [messages, loading]);
 
-  const sendMessage = async () => {
-    const userMessage = input.trim();
+  // Build conversation history for API
+  const buildHistory = () => {
+    return messages
+      .filter((m) => m.sender !== "system")
+      .slice(-12) // Keep last 12 messages (6 turns)
+      .map((m) => ({
+        role: m.sender === "user" ? "user" : "assistant",
+        text: m.text,
+      }));
+  };
+
+  const sendMessage = async (overrideMessage) => {
+    const userMessage = (overrideMessage || input).trim();
 
     if (!userMessage || loading) return;
+
+    // Hide suggestions after first message
+    setShowSuggestions(false);
 
     // Add user message immediately
     setMessages((previous) => [
@@ -40,13 +60,14 @@ function Chatbot() {
     setLoading(true);
 
     try {
-      const response = fetch(`${import.meta.env.VITE_RAG_API_URL}/chat`, {
+      const response = await fetch(`${import.meta.env.VITE_RAG_API_URL}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           message: userMessage,
+          history: buildHistory(),
         }),
       });
 
@@ -70,7 +91,7 @@ function Chatbot() {
         ...previous,
         {
           sender: "bot",
-          text: "Sorry, I couldn't connect to the Yugan Screens assistant. Please try again.",
+          text: "Sorry, I couldn't connect to the Yugan Screens assistant. Please try again or contact us via WhatsApp.",
         },
       ]);
     } finally {
@@ -83,6 +104,10 @@ function Chatbot() {
       event.preventDefault();
       sendMessage();
     }
+  };
+
+  const handleSuggestionClick = (text) => {
+    sendMessage(text);
   };
 
   return (
@@ -107,7 +132,7 @@ function Chatbot() {
 
                 <div className="flex items-center gap-2 text-xs opacity-90">
                   <span className="h-2 w-2 rounded-full bg-green-300"></span>
-                  Online
+                  Online • Hybrid RAG
                 </div>
               </div>
 
@@ -149,20 +174,38 @@ function Chatbot() {
               </div>
             ))}
 
+            {/* Quick-reply suggestions */}
+            {showSuggestions && !loading && (
+              <div className="mb-4 flex flex-wrap gap-2">
+                {suggestions.map((text, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleSuggestionClick(text)}
+                    className="rounded-full border border-[#0F766E]/30 bg-white px-3 py-1.5 text-xs text-[#0F766E] shadow-sm transition hover:bg-[#0F766E] hover:text-white"
+                  >
+                    {text}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Loading */}
             {loading && (
               <div className="mb-4 flex justify-start">
 
                 <div className="rounded-2xl rounded-bl-md bg-white px-4 py-3 shadow-sm">
 
-                  <div className="flex gap-1">
-                    <span className="animate-bounce">●</span>
-                    <span className="animate-bounce [animation-delay:150ms]">
-                      ●
-                    </span>
-                    <span className="animate-bounce [animation-delay:300ms]">
-                      ●
-                    </span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-1">
+                      <span className="animate-bounce text-[#0F766E]">●</span>
+                      <span className="animate-bounce text-[#0F766E] [animation-delay:150ms]">
+                        ●
+                      </span>
+                      <span className="animate-bounce text-[#0F766E] [animation-delay:300ms]">
+                        ●
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-400">Thinking...</span>
                   </div>
 
                 </div>
@@ -190,7 +233,7 @@ function Chatbot() {
               />
 
               <button
-                onClick={sendMessage}
+                onClick={() => sendMessage()}
                 disabled={loading || !input.trim()}
                 className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0F766E] text-white transition hover:bg-[#115E59] disabled:cursor-not-allowed disabled:opacity-40"
                 aria-label="Send message"
@@ -201,7 +244,7 @@ function Chatbot() {
             </div>
 
             <p className="mt-2 text-center text-[10px] text-slate-400">
-              Yugan Screens Assistant
+              Powered by Hybrid RAG • Yugan Screens
             </p>
 
           </div>

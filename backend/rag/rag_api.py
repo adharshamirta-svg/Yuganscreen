@@ -1,31 +1,34 @@
+"""
+Yugan Screens — Hybrid RAG API
+================================
+
+Flask API serving the hybrid RAG chatbot.
+Supports conversation history for multi-turn chat.
+"""
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 from chatbot import ask_chatbot
 
 
-# Create Flask application
+# ─── Create Flask App ────────────────────────────
+
 app = Flask(__name__)
 
-# Allow your React frontend to communicate with this API
+# Allow the React frontend to communicate
 CORS(app)
 
 
-# --------------------------------------------------
-# HOME / HEALTH CHECK
-# --------------------------------------------------
+# ─── Health Check ────────────────────────────────
 
 @app.route("/", methods=["GET"])
 def home():
     return jsonify({
         "success": True,
-        "message": "Yugan Screens RAG API is running!"
+        "message": "Yugan Screens Hybrid RAG API is running!"
     })
 
-
-# --------------------------------------------------
-# HEALTH CHECK
-# --------------------------------------------------
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -35,9 +38,7 @@ def health():
     })
 
 
-# --------------------------------------------------
-# CHAT API
-# --------------------------------------------------
+# ─── Chat Endpoint ──────────────────────────────
 
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -49,6 +50,9 @@ def chat():
         # Get user's message
         question = data.get("message", "").strip()
 
+        # Get conversation history (optional)
+        history = data.get("history", [])
+
         # Validate message
         if not question:
             return jsonify({
@@ -58,8 +62,14 @@ def chat():
 
         print(f"📩 User: {question}")
 
-        # Send question to RAG + OpenAI chatbot
-        answer = ask_chatbot(question)
+        if history:
+            print(f"📜 History: {len(history)} turns")
+
+        # Send question to hybrid RAG chatbot
+        answer = ask_chatbot(
+            question,
+            history=history
+        )
 
         print(f"🤖 Assistant: {answer}")
 
@@ -75,19 +85,39 @@ def chat():
 
         return jsonify({
             "success": False,
-            "message": "Sorry, something went wrong while processing your question."
+            "message": (
+                "Sorry, something went wrong while "
+                "processing your question."
+            )
         }), 500
 
 
-# --------------------------------------------------
-# RUN LOCALLY
-# --------------------------------------------------
+# ─── Suggest Quick Replies ───────────────────────
+
+@app.route("/suggestions", methods=["GET"])
+def suggestions():
+    """Return suggested quick-reply topics."""
+
+    return jsonify({
+        "success": True,
+        "suggestions": [
+            "What products do you offer?",
+            "What are the prices?",
+            "Do you provide installation?",
+            "How can I get a free quote?",
+            "Where are you located?"
+        ]
+    })
+
+
+# ─── Run Locally ────────────────────────────────
 
 if __name__ == "__main__":
 
-    print("🚀 Starting Yugan Screens RAG API...")
+    print("🚀 Starting Yugan Screens Hybrid RAG API...")
     print("📍 Local URL: http://localhost:5000")
     print("💬 Chat endpoint: http://localhost:5000/chat")
+    print("💡 Suggestions: http://localhost:5000/suggestions")
 
     app.run(
         host="0.0.0.0",
